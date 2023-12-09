@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "@aws-sdk/client-ses": "^3.454.0",
+    "@aws-sdk/lib-dynamodb": "^3.454.0",
+    "@google-cloud/storage": "^7.6.0",
+    "@mailchimp/mailchimp_transactional": "^1.0.50",
+    "aws-sdk": "^2.1502.0",
+    "axios": "^1.6.2",
+    "mandrill-api": "^1.0.45",
+    "uuid": "^9.0.1"
+  }
+}

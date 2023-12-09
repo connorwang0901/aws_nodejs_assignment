@@ -1,0 +1,49 @@
+name: Run Tests
+
+on:
+  pull_request:
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest 
+    env:
+      DB_DATABASE: postgres
+      DB_USERNAME: postgres
+      DB_PASSWORD: wxxxxxxxx
+      DB_HOSTNAME: localhost
+      DB_PORT: 5432
+      DB_DIALECT: postgres
+      SNS_ARN: arn:aws:sns:us-east-1:08xxxxxxxx:submissionTopic.fifo
+
+    services:
+      postgres:
+        image: postgres:12
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: wxxxxxxxxx
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2 
+
+    - name: Install dependencies
+      run: | 
+          npm install node-statsd --save
+          npm install @aws-sdk/client-sns
+          npm install
+
+
+    - name: create log config
+      run: | 
+          npm install bunyan
+          sudo mkdir -p /var/log/webapp/
+          sudo chmod -R 700 /var/log/webapp/
+
+
+    - name: Run tests
+      run: npx jest integration.test.js --forceExit

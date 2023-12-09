@@ -1,0 +1,12 @@
+[Unit]
+Description=My CSYE 6225 App
+
+[Service]
+WorkingDirectory=/home/admin/webapp-prod
+EnvironmentFile=/opt/application.properties
+ExecStart=/usr/bin/npm start
+User=csye6225
+Group=csye6225
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,140 @@
+name: Build AMI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-ami:
+
+    runs-on: ubuntu-latest 
+    env:
+      DB_DATABASE: postgres
+      DB_USERNAME: postgres
+      DB_PASSWORD: xxxxxxxxx
+      DB_HOSTNAME: localhost
+      DB_PORT: 5432
+      DB_DIALECT: postgres
+      SNS_ARN: arn:aws:sns:us-east-1:08xxxxxxxxxx:submissionTopic.fifo
+
+    services:
+      postgres:
+        image: postgres:12
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: wp2009
+          POSTGRES_DB: postgres
+
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+    
+    - name: Checkout code
+      uses: actions/checkout@v2 
+
+    - name: Install dependencies
+
+      run: | 
+          npm install node-statsd --save
+          npm install @aws-sdk/client-sns
+          npm install
+
+    - name: create log config
+      run: | 
+          npm install bunyan
+          sudo mkdir -p /var/log/webapp/
+          sudo chmod -R 777 /var/log/webapp/
+
+    - name: Run tests
+      run: npx jest integration.test.js --forceExit
+
+    - name: Install Packer
+      run: |
+        sudo apt-get update
+        sudo apt-get install unzip
+        wget https://releases.hashicorp.com/packer/1.7.6/packer_1.7.6_linux_amd64.zip
+        unzip packer_1.7.6_linux_amd64.zip
+        sudo mv packer /usr/local/bin/
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+
+    - name: Zip the project
+      run: zip -r webapp-prod.zip ./*
+
+    - name: Packer Initialize
+      run: packer init ami.pkr.hcl
+
+    - name: Run Packer to build AMI and Extract AMI ID
+      run: | 
+          packer build ami.pkr.hcl 2>&1 | sudo tee output.txt
+          AMI_ID=$(tail -2 output.txt | awk 'match($0, /ami-[a-zA-Z0-9]+/) { print substr($0, RSTART, RLENGTH) }')
+          echo "AMI_ID=$AMI_ID" >> $GITHUB_ENV
+          echo "AMI_ID=$AMI_ID"
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+              aws-access-key-id: ${{ secrets.DEMO_AWS_ACCESS_KEY_ID }}
+              aws-secret-access-key: ${{ secrets.DEMO_AWS_SECRET_ACCESS_KEY }}
+              aws-region: ${{ secrets.DEMO_AWS_REGION }}
+    
+    - name: Create New Launch Template Version
+      run: |
+          aws ec2 create-launch-template-version \
+            --launch-template-name ${{ secrets.LAUNCH_TEMPLATE_NAME }} \
+            --version-description "New version inheriting properties" \
+            --source-version 1 \
+            --launch-template-data '{"ImageId":"${{ env.AMI_ID }}"}'
+  
+    - name: Update Auto Scaling Group
+      run: |
+          latest_version=$(aws ec2 describe-launch-template-versions \
+            --launch-template-name ${{ secrets.LAUNCH_TEMPLATE_NAME }} \
+            --query 'LaunchTemplateVersions[0].VersionNumber' \
+            --output text)
+          aws autoscaling update-auto-scaling-group \
+            --auto-scaling-group-name ${{ secrets.AUTO_SCALING_GROUP_NAME }} \
+            --launch-template "LaunchTemplateName=${{ secrets.LAUNCH_TEMPLATE_NAME }},Version=$latest_version"
+    
+    - name: Refresh Instance
+      id: start_instance_refresh
+      run: |
+          response=$(aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name ${{ secrets.AUTO_SCALING_GROUP_NAME }})
+          echo "response: $response"
+          refresh_id=$(echo $response | jq -r '.InstanceRefreshId')
+          echo "refresh instance ID: $refresh_id"
+          echo "INSTANCE_REFRESH_ID=$refresh_id" >> $GITHUB_ENV
+      
+    - name: Wait until instance refresh ends
+      run: |
+           while : ; do
+            status=$(aws autoscaling describe-instance-refreshes \
+              --auto-scaling-group-name ${{ secrets.AUTO_SCALING_GROUP_NAME }} \
+              --instance-refresh-ids $INSTANCE_REFRESH_ID \
+              --query 'InstanceRefreshes[0].Status' \
+              --output text)
+            echo "refresh status: $status"
+              if [[ "$status" == "Successful" ]]; then
+                echo "refresh successful。"
+                break
+              elif [[ "$status" == "Failed" || "$status" == "Cancelled" ]]; then
+                echo "refresh failed"
+                exit 1
+              else
+                echo "waiting for refresh finished"
+                sleep 60
+              fi
+            done
+      
+
+    

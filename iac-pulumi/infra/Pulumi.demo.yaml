@@ -1,0 +1,22 @@
+config:
+  aws:profile: demo
+  aws:region: us-east-1
+  gcp:project: iconic-heading-406104
+  gcp:zone: us-east1
+  infra:amiId: "ami-0d9cbfe28193d017b"
+  infra:awsRegion: us-east-1
+  infra:bucketName: "connor_csye6225_a9"
+  infra:databaseDialect: "postgres"
+  infra:databaseHostName: "csye622525e1f5c.co3nd8zvn9ba.us-east-1.rds.amazonaws.com"
+  infra:databaseInstanceName: "postgres"
+  infra:databasePassword: "12345678!"
+  infra:databasePort: "5432"
+  infra:databaseUsername: "csye6225"
+  infra:domain: "demo.meixxxxxxx.online"
+  infra:gcpProjectId: "iconic-heading-406104"
+  infra:myAmiId: "ami-0d9cbfe28193d017b"
+  infra:privateSubnetCidrBase: "10.0"
+  infra:publicSubnetCidrBase: "10.0"
+  infra:senderEmail: "support@demo.xxxxxxxx.online"
+  infra:vpcCidrBlock: 10.0.0.0/16
+  infra:zoneId: "Z06828382BC2DB0DIDHU8"

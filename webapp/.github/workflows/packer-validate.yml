@@ -1,0 +1,39 @@
+name: Packer CI
+
+on:
+  pull_request:
+
+jobs:
+  packer-checks:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2 
+
+    - name: Install Packer
+      run: |
+        sudo apt-get update
+        sudo apt-get install unzip
+        wget https://releases.hashicorp.com/packer/1.7.6/packer_1.7.6_linux_amd64.zip
+        unzip packer_1.7.6_linux_amd64.zip
+        sudo mv packer /usr/local/bin/
+
+    - name: Zip the project
+      run: |
+        zip -r webapp-prod.zip ./*
+        ls -l /home/runner/work/webapp/webapp/
+        file /home/runner/work/webapp/webapp/webapp-prod.zip
+
+    - name: Packer Initialize
+      run: packer init ami.pkr.hcl
+
+
+    - name: Check Packer format
+      run: |
+        packer fmt ami.pkr.hcl
+        git diff --exit-code
+
+
+    - name: Packer Validate 
+      run: packer validate ami.pkr.hcl
